@@ -1,6 +1,25 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import {Redis} from 'ioredis';
+import dotenv from "dotenv"
+dotenv.config();
+
+
+const pub =  new Redis({
+	host: process.env.REDIS_HOST,
+    port: 17562,
+	username: process.env.REDIS_USERNAME,
+	password: process.env.REDIS_PASSWORD,
+
+});
+const sub =  new Redis({
+	host: process.env.REDIS_HOST,
+    port: 17562,
+	username: process.env.REDIS_USERNAME,
+	password: process.env.REDIS_PASSWORD,
+
+});
 
 const app = express();
 
@@ -11,6 +30,24 @@ const io = new Server(server, {
 		methods: ["GET", "POST"],
 	},
 });
+
+sub.subscribe("MESSAGES");
+sub.on("message",(channel, message) => {
+	if(channel === "MESSAGES") {
+
+		const parsedMessage = JSON.parse(message);
+		const { newMessage, receiverId } = parsedMessage;
+		console.log(newMessage);
+		console.log(receiverId);
+		const receiverSocketId = getReceiverSocketId(receiverId);
+		if (receiverSocketId) {
+			io.to(receiverSocketId).emit("newMessage", newMessage);
+
+		}
+
+	}
+})
+
 
 export const getReceiverSocketId = (receiverId: string) => {
 	return userSocketMap[receiverId];
@@ -36,4 +73,6 @@ io.on("connection", (socket) => {
 	});
 });
 
-export { app, io, server };
+
+
+export { app, io, server , pub ,sub};
